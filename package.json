@@ -1,0 +1,18 @@
+{
+  "name": "where-should-we-meet",
+  "version": "1.0.0",
+  "description": "Shared meeting-place recommendation web app prototype.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "meeting",
+    "recommendation",
+    "realtime",
+    "seoul"
+  ],
+  "author": "",
+  "license": "MIT"
+}
