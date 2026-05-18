@@ -1,11 +1,11 @@
 {
-  "name": "where-should-we-meet",
+  "name": "woo-a-man",
   "version": "1.0.0",
-  "description": "Shared meeting-place recommendation web app prototype.",
-  "main": "server.js",
+  "description": "Next.js meeting-place recommendation web app.",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "keywords": [
     "meeting",
@@ -14,5 +14,16 @@
     "seoul"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "latest"
+  }
 }

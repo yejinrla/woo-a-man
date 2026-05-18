@@ -1,13 +1,82 @@
-const http = require("http");
-const fs = require("fs");
-const path = require("path");
-const crypto = require("crypto");
+import { randomBytes } from "node:crypto";
 
-const PORT = Number(process.env.PORT || 3000);
-const PUBLIC_DIR = path.join(__dirname, "public");
+export type TimeOfDay = "낮" | "밤";
 
-const rooms = new Map();
-const sseClients = new Map();
+export interface Participant {
+  id: string;
+  name: string;
+  startTime: string;
+  startPlace: string;
+  transport: string;
+  returnPlace: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+export interface RouteSummary {
+  participantId: string;
+  participantName: string;
+  duration: number;
+  arrivalTime: string;
+  transport: string;
+  from: string;
+}
+
+export interface PlaceRecommendation {
+  id: string;
+  name: string;
+  type: string;
+  tags: string[];
+  x: number;
+  y: number;
+  voteCount: number;
+  fit: number;
+}
+
+export interface Recommendation {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  score: number;
+  voteCount: number;
+  summary: string;
+  routes: RouteSummary[];
+  places: PlaceRecommendation[];
+}
+
+export interface Room {
+  id: string;
+  month: number;
+  timeOfDay: TimeOfDay;
+  tags: string[];
+  participants: Participant[];
+  votes: Record<string, Record<string, boolean>>;
+  updatedAt: string;
+}
+
+export interface RoomResponse extends Room {
+  recommendations: Recommendation[];
+}
+
+interface Station {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  vibe: string[];
+  base: number;
+  places: Array<{
+    id: string;
+    name: string;
+    type: string;
+    tags: string[];
+    dx: number;
+    dy: number;
+  }>;
+}
+
+type SseController = ReadableStreamDefaultController<Uint8Array>;
 
 const TAGS = [
   "#요즘유행하는",
@@ -18,7 +87,7 @@ const TAGS = [
   "#비오는날좋은"
 ];
 
-const STATIONS = [
+const STATIONS: Station[] = [
   {
     id: "hongdae",
     name: "홍대입구역",
@@ -125,40 +194,43 @@ const STATIONS = [
   }
 ];
 
-const LANDMARKS = {
-  "홍대입구역": { x: 43, y: 43 },
-  "합정역": { x: 39, y: 49 },
-  "망원역": { x: 35, y: 43 },
-  "신촌역": { x: 50, y: 43 },
-  "이대역": { x: 55, y: 40 },
-  "성수역": { x: 73, y: 56 },
-  "강남역": { x: 65, y: 76 },
-  "잠실역": { x: 81, y: 69 },
-  "서울역": { x: 55, y: 52 },
-  "사당역": { x: 56, y: 82 },
-  "건대입구역": { x: 77, y: 61 },
-  "왕십리역": { x: 70, y: 52 },
-  "여의도역": { x: 41, y: 62 },
-  "종각역": { x: 58, y: 44 },
-  "혜화역": { x: 61, y: 35 },
-  "신림역": { x: 46, y: 82 },
-  "노원역": { x: 78, y: 21 },
-  "수유역": { x: 65, y: 24 },
-  "교대역": { x: 62, y: 78 },
-  "마포구청역": { x: 34, y: 39 }
+const LANDMARKS: Record<string, { x: number; y: number }> = {
+  홍대입구역: { x: 43, y: 43 },
+  합정역: { x: 39, y: 49 },
+  망원역: { x: 35, y: 43 },
+  신촌역: { x: 50, y: 43 },
+  이대역: { x: 55, y: 40 },
+  성수역: { x: 73, y: 56 },
+  강남역: { x: 65, y: 76 },
+  잠실역: { x: 81, y: 69 },
+  서울역: { x: 55, y: 52 },
+  사당역: { x: 56, y: 82 },
+  건대입구역: { x: 77, y: 61 },
+  왕십리역: { x: 70, y: 52 },
+  여의도역: { x: 41, y: 62 },
+  종각역: { x: 58, y: 44 },
+  혜화역: { x: 61, y: 35 },
+  신림역: { x: 46, y: 82 },
+  노원역: { x: 78, y: 21 },
+  수유역: { x: 65, y: 24 },
+  교대역: { x: 62, y: 78 },
+  마포구청역: { x: 34, y: 39 }
 };
 
-const MIME_TYPES = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml; charset=utf-8"
+const globalStore = globalThis as typeof globalThis & {
+  __wooRooms?: Map<string, Room>;
+  __wooSseClients?: Map<string, Set<SseController>>;
 };
 
-function createRoom(overrides = {}) {
-  const room = {
-    id: crypto.randomBytes(4).toString("hex"),
+const rooms = globalStore.__wooRooms ?? new Map<string, Room>();
+const sseClients = globalStore.__wooSseClients ?? new Map<string, Set<SseController>>();
+
+globalStore.__wooRooms = rooms;
+globalStore.__wooSseClients = sseClients;
+
+export function createRoom(body: unknown = {}): RoomResponse {
+  const room: Room = {
+    id: randomBytes(4).toString("hex"),
     month: new Date().getMonth() + 1,
     timeOfDay: "낮",
     tags: ["#요즘유행하는", "#대화하기좋은"],
@@ -180,39 +252,84 @@ function createRoom(overrides = {}) {
     updatedAt: new Date().toISOString()
   };
 
-  Object.assign(room, sanitizeRoomPatch(overrides));
+  Object.assign(room, sanitizeRoomPatch(body));
   rooms.set(room.id, room);
   return withRecommendations(room);
 }
 
-function createParticipant(index, overrides = {}) {
-  const now = new Date().toISOString();
-  return {
-    id: crypto.randomBytes(4).toString("hex"),
-    name: `참가자 ${index}`,
-    startTime: overrides.startTime || "18:30",
-    startPlace: overrides.startPlace || "",
-    transport: overrides.transport || "대중교통",
-    returnPlace: overrides.returnPlace || "",
-    updatedBy: overrides.updatedBy || "공유방",
-    updatedAt: now
-  };
-}
+export function getOrCreateRoom(id: string): Room {
+  if (rooms.has(id)) return rooms.get(id)!;
 
-function getOrCreateRoom(id) {
-  if (rooms.has(id)) {
-    return rooms.get(id);
-  }
-
-  const room = createRoom();
+  const response = createRoom();
+  const room = rooms.get(response.id)!;
   rooms.delete(room.id);
   room.id = id;
-  room.updatedAt = new Date().toISOString();
+  markUpdated(room);
   rooms.set(id, room);
   return room;
 }
 
-function withRecommendations(room) {
+export function getRoomResponse(id: string): RoomResponse {
+  return withRecommendations(getOrCreateRoom(id));
+}
+
+export function patchRoom(id: string, body: unknown): RoomResponse {
+  const room = getOrCreateRoom(id);
+  Object.assign(room, sanitizeRoomPatch(body));
+  markUpdated(room);
+  broadcastRoom(id);
+  return withRecommendations(room);
+}
+
+export function addParticipant(roomId: string, body: unknown): RoomResponse {
+  const room = getOrCreateRoom(roomId);
+  const participant = createParticipant(room.participants.length + 1, sanitizeParticipantPatch(body));
+  room.participants.push(participant);
+  markUpdated(room);
+  broadcastRoom(room.id);
+  return withRecommendations(room);
+}
+
+export function patchParticipant(roomId: string, participantId: string, body: unknown): RoomResponse | null {
+  const room = getOrCreateRoom(roomId);
+  const participant = room.participants.find((item) => item.id === participantId);
+  if (!participant) return null;
+
+  Object.assign(participant, sanitizeParticipantPatch(body));
+  markUpdated(room);
+  broadcastRoom(room.id);
+  return withRecommendations(room);
+}
+
+export function deleteParticipant(roomId: string, participantId: string): RoomResponse {
+  const room = getOrCreateRoom(roomId);
+  room.participants = room.participants.filter((item) => item.id !== participantId);
+  room.participants.forEach((participant, index) => {
+    participant.name = `참가자 ${index + 1}`;
+  });
+  markUpdated(room);
+  broadcastRoom(room.id);
+  return withRecommendations(room);
+}
+
+export function toggleVote(roomId: string, body: unknown): { room?: RoomResponse; error?: string } {
+  const room = getOrCreateRoom(roomId);
+  const data = asObject(body);
+  const targetType = data.targetType === "place" ? "place" : "station";
+  const targetId = String(data.targetId || "").replace(/[^a-z0-9-]/gi, "");
+  const voterId = String(data.voterId || "").replace(/[^a-z0-9-]/gi, "");
+
+  if (!targetId || !voterId) return { error: "targetId and voterId are required" };
+
+  const key = `${targetType}:${targetId}`;
+  if (!room.votes[key]) room.votes[key] = {};
+  room.votes[key][voterId] = !room.votes[key][voterId];
+  markUpdated(room);
+  broadcastRoom(room.id);
+  return { room: withRecommendations(room) };
+}
+
+export function withRecommendations(room: Room): RoomResponse {
   return {
     ...room,
     tags: room.tags.filter((tag) => TAGS.includes(tag)),
@@ -220,7 +337,38 @@ function withRecommendations(room) {
   };
 }
 
-function buildRecommendations(room) {
+export function addSseClient(roomId: string, controller: SseController): void {
+  if (!sseClients.has(roomId)) sseClients.set(roomId, new Set<SseController>());
+  sseClients.get(roomId)!.add(controller);
+}
+
+export function removeSseClient(roomId: string, controller: SseController): void {
+  const clients = sseClients.get(roomId);
+  if (!clients) return;
+  clients.delete(controller);
+  if (!clients.size) sseClients.delete(roomId);
+}
+
+export function serializeSseRoom(roomId: string): Uint8Array {
+  const encoder = new TextEncoder();
+  return encoder.encode(`event: room\ndata: ${JSON.stringify(getRoomResponse(roomId))}\n\n`);
+}
+
+function createParticipant(index: number, overrides: Partial<Participant> = {}): Participant {
+  const now = new Date().toISOString();
+  return {
+    id: randomBytes(4).toString("hex"),
+    name: `참가자 ${index}`,
+    startTime: overrides.startTime || "18:30",
+    startPlace: overrides.startPlace || "",
+    transport: overrides.transport || "대중교통",
+    returnPlace: overrides.returnPlace || "",
+    updatedBy: overrides.updatedBy || "공유방",
+    updatedAt: overrides.updatedAt || now
+  };
+}
+
+function buildRecommendations(room: Room): Recommendation[] {
   const activeParticipants = room.participants.filter((participant) => participant.startPlace.trim());
   const participants = activeParticipants.length ? activeParticipants : room.participants;
   const selectedTags = room.tags.length ? room.tags : ["#요즘유행하는"];
@@ -275,7 +423,7 @@ function buildRecommendations(room) {
     .slice(0, 5);
 }
 
-function buildSummary(station, room, routes, places) {
+function buildSummary(station: Station, room: Room, routes: RouteSummary[], places: PlaceRecommendation[]): string {
   const durations = routes.map((route) => route.duration);
   const average = Math.round(durations.reduce((sum, duration) => sum + duration, 0) / Math.max(durations.length, 1));
   const placeType = places[0]?.type || "장소";
@@ -284,7 +432,7 @@ function buildSummary(station, room, routes, places) {
   return `${tone}, 평균 ${average}분대로 모이면서 ${tagText} ${placeType}까지 이어가기 딱 좋아요.`;
 }
 
-function seasonalFit(month, stationId) {
+function seasonalFit(month: number, stationId: string): number {
   const springFall = [3, 4, 5, 9, 10, 11];
   const hotCold = [1, 2, 7, 8, 12];
   if (springFall.includes(Number(month)) && ["mangwon", "jamsil", "hongdae"].includes(stationId)) return 1;
@@ -292,7 +440,7 @@ function seasonalFit(month, stationId) {
   return 0;
 }
 
-function estimateDuration(participant, station, room) {
+function estimateDuration(participant: Participant, station: Station, room: Room): number {
   const origin = geocode(participant.startPlace || participant.returnPlace || participant.name);
   const dx = origin.x - station.x;
   const dy = origin.y - station.y;
@@ -304,7 +452,7 @@ function estimateDuration(participant, station, room) {
   return clamp(Math.round(distance * 1.05 * modeFactor + 15 + timePenalty + monthPenalty + hashPenalty), 12, 95);
 }
 
-function geocode(label) {
+function geocode(label: string): { x: number; y: number } {
   const cleanLabel = String(label || "").trim();
   if (LANDMARKS[cleanLabel]) return LANDMARKS[cleanLabel];
 
@@ -318,19 +466,19 @@ function geocode(label) {
   };
 }
 
-function addMinutes(time, minutes) {
+function addMinutes(time: string, minutes: number): string {
   const [hour = "18", minute = "00"] = String(time || "18:00").split(":");
   const date = new Date(2026, 0, 1, Number(hour), Number(minute));
   date.setMinutes(date.getMinutes() + minutes);
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function countVotes(room, key) {
+function countVotes(room: Room, key: string): number {
   const bucket = room.votes[key] || {};
   return Object.values(bucket).filter(Boolean).length;
 }
 
-function stableHash(value) {
+function stableHash(value: string): number {
   let hash = 2166136261;
   for (const char of String(value || "")) {
     hash ^= char.charCodeAt(0);
@@ -339,222 +487,51 @@ function stableHash(value) {
   return hash >>> 0;
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function markUpdated(room) {
+function markUpdated(room: Room): Room {
   room.updatedAt = new Date().toISOString();
   return room;
 }
 
-function sanitizeRoomPatch(body) {
-  const patch = {};
-  if (body.month) patch.month = clamp(Number(body.month), 1, 12);
-  if (body.timeOfDay === "낮" || body.timeOfDay === "밤") patch.timeOfDay = body.timeOfDay;
-  if (Array.isArray(body.tags)) patch.tags = body.tags.filter((tag) => TAGS.includes(tag)).slice(0, 6);
+function sanitizeRoomPatch(body: unknown): Partial<Room> {
+  const data = asObject(body);
+  const patch: Partial<Room> = {};
+  if (data.month) patch.month = clamp(Number(data.month), 1, 12);
+  if (data.timeOfDay === "낮" || data.timeOfDay === "밤") patch.timeOfDay = data.timeOfDay;
+  if (Array.isArray(data.tags)) patch.tags = data.tags.filter((tag): tag is string => typeof tag === "string" && TAGS.includes(tag)).slice(0, 6);
   return patch;
 }
 
-function sanitizeParticipantPatch(body) {
-  const patch = {};
-  if (typeof body.startTime === "string") patch.startTime = body.startTime.slice(0, 5) || "18:30";
-  if (typeof body.startPlace === "string") patch.startPlace = body.startPlace.trim().slice(0, 40);
-  if (typeof body.transport === "string") patch.transport = body.transport.slice(0, 12);
-  if (typeof body.returnPlace === "string") patch.returnPlace = body.returnPlace.trim().slice(0, 40);
-  if (typeof body.updatedBy === "string") patch.updatedBy = body.updatedBy.trim().slice(0, 20) || "공유방";
+function sanitizeParticipantPatch(body: unknown): Partial<Participant> {
+  const data = asObject(body);
+  const patch: Partial<Participant> = {};
+  if (typeof data.startTime === "string") patch.startTime = data.startTime.slice(0, 5) || "18:30";
+  if (typeof data.startPlace === "string") patch.startPlace = data.startPlace.trim().slice(0, 40);
+  if (typeof data.transport === "string") patch.transport = data.transport.slice(0, 12);
+  if (typeof data.returnPlace === "string") patch.returnPlace = data.returnPlace.trim().slice(0, 40);
+  if (typeof data.updatedBy === "string") patch.updatedBy = data.updatedBy.trim().slice(0, 20) || "공유방";
   patch.updatedAt = new Date().toISOString();
   return patch;
 }
 
-function sendJson(response, statusCode, payload) {
-  response.writeHead(statusCode, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
-  });
-  response.end(JSON.stringify(payload));
+function asObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  return {};
 }
 
-function readJson(request) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 1_000_000) {
-        reject(new Error("Payload too large"));
-        request.destroy();
-      }
-    });
-    request.on("end", () => {
-      if (!body) {
-        resolve({});
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(body));
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
-}
-
-function broadcastRoom(roomId) {
+function broadcastRoom(roomId: string): void {
   const clients = sseClients.get(roomId);
   if (!clients || !clients.size) return;
 
-  const payload = JSON.stringify(withRecommendations(rooms.get(roomId)));
-  for (const response of clients) {
-    response.write(`event: room\n`);
-    response.write(`data: ${payload}\n\n`);
-  }
-}
-
-function handleSse(request, response, roomId) {
-  const room = getOrCreateRoom(roomId);
-  response.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no"
-  });
-
-  response.write(`event: room\n`);
-  response.write(`data: ${JSON.stringify(withRecommendations(room))}\n\n`);
-
-  if (!sseClients.has(roomId)) sseClients.set(roomId, new Set());
-  sseClients.get(roomId).add(response);
-
-  request.on("close", () => {
-    const clients = sseClients.get(roomId);
-    if (!clients) return;
-    clients.delete(response);
-    if (!clients.size) sseClients.delete(roomId);
-  });
-}
-
-async function handleApi(request, response, url) {
-  if (request.method === "POST" && url.pathname === "/api/rooms") {
-    const body = await readJson(request);
-    return sendJson(response, 201, createRoom(body));
-  }
-
-  const roomMatch = url.pathname.match(/^\/api\/rooms\/([^/]+)$/);
-  if (roomMatch && request.method === "GET") {
-    const room = getOrCreateRoom(roomMatch[1]);
-    return sendJson(response, 200, withRecommendations(room));
-  }
-
-  if (roomMatch && request.method === "PATCH") {
-    const room = getOrCreateRoom(roomMatch[1]);
-    const body = await readJson(request);
-    Object.assign(room, sanitizeRoomPatch(body));
-    markUpdated(room);
-    broadcastRoom(room.id);
-    return sendJson(response, 200, withRecommendations(room));
-  }
-
-  const eventsMatch = url.pathname.match(/^\/api\/rooms\/([^/]+)\/events$/);
-  if (eventsMatch && request.method === "GET") {
-    return handleSse(request, response, eventsMatch[1]);
-  }
-
-  const participantsMatch = url.pathname.match(/^\/api\/rooms\/([^/]+)\/participants$/);
-  if (participantsMatch && request.method === "POST") {
-    const room = getOrCreateRoom(participantsMatch[1]);
-    const body = await readJson(request);
-    const participant = createParticipant(room.participants.length + 1, sanitizeParticipantPatch(body));
-    room.participants.push(participant);
-    markUpdated(room);
-    broadcastRoom(room.id);
-    return sendJson(response, 201, withRecommendations(room));
-  }
-
-  const participantMatch = url.pathname.match(/^\/api\/rooms\/([^/]+)\/participants\/([^/]+)$/);
-  if (participantMatch && request.method === "PATCH") {
-    const room = getOrCreateRoom(participantMatch[1]);
-    const participant = room.participants.find((item) => item.id === participantMatch[2]);
-    if (!participant) return sendJson(response, 404, { error: "Participant not found" });
-
-    Object.assign(participant, sanitizeParticipantPatch(await readJson(request)));
-    markUpdated(room);
-    broadcastRoom(room.id);
-    return sendJson(response, 200, withRecommendations(room));
-  }
-
-  if (participantMatch && request.method === "DELETE") {
-    const room = getOrCreateRoom(participantMatch[1]);
-    room.participants = room.participants.filter((item) => item.id !== participantMatch[2]);
-    room.participants.forEach((participant, index) => {
-      participant.name = `참가자 ${index + 1}`;
-    });
-    markUpdated(room);
-    broadcastRoom(room.id);
-    return sendJson(response, 200, withRecommendations(room));
-  }
-
-  const votesMatch = url.pathname.match(/^\/api\/rooms\/([^/]+)\/votes$/);
-  if (votesMatch && request.method === "POST") {
-    const room = getOrCreateRoom(votesMatch[1]);
-    const body = await readJson(request);
-    const targetType = body.targetType === "place" ? "place" : "station";
-    const targetId = String(body.targetId || "").replace(/[^a-z0-9-]/gi, "");
-    const voterId = String(body.voterId || "").replace(/[^a-z0-9-]/gi, "");
-    if (!targetId || !voterId) return sendJson(response, 400, { error: "targetId and voterId are required" });
-
-    const key = `${targetType}:${targetId}`;
-    if (!room.votes[key]) room.votes[key] = {};
-    room.votes[key][voterId] = !room.votes[key][voterId];
-    markUpdated(room);
-    broadcastRoom(room.id);
-    return sendJson(response, 200, withRecommendations(room));
-  }
-
-  return sendJson(response, 404, { error: "API route not found" });
-}
-
-function serveStatic(response, filePath) {
-  const extension = path.extname(filePath);
-  const contentType = MIME_TYPES[extension] || "application/octet-stream";
-
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-      response.end("Not found");
-      return;
+  const payload = serializeSseRoom(roomId);
+  for (const controller of clients) {
+    try {
+      controller.enqueue(payload);
+    } catch {
+      clients.delete(controller);
     }
-
-    response.writeHead(200, {
-      "Content-Type": contentType,
-      "Cache-Control": "no-store"
-    });
-    response.end(content);
-  });
-}
-
-const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-
-  try {
-    if (url.pathname.startsWith("/api/")) {
-      await handleApi(request, response, url);
-      return;
-    }
-
-    const requestedPath = decodeURIComponent(url.pathname);
-    const staticPath = path.normalize(path.join(PUBLIC_DIR, requestedPath));
-    if (staticPath.startsWith(PUBLIC_DIR) && fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
-      serveStatic(response, staticPath);
-      return;
-    }
-
-    serveStatic(response, path.join(PUBLIC_DIR, "index.html"));
-  } catch (error) {
-    sendJson(response, 500, { error: error.message || "Internal server error" });
   }
-});
-
-server.listen(PORT, () => {
-  console.log(`우리 어디서 만나지 is running at http://localhost:${PORT}`);
-});
+}
