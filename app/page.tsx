@@ -20,17 +20,12 @@ export default function HomePage() {
       <section className="home-shell">
         <div className="home-copy">
           <div className="home-kicker">
-            <span>EST.2026</span>
             <p>모임 기준 최적 만남터</p>
           </div>
 
           <h1 className="home-title">
             우리 어디서
-            <br />
             만나?
-            <span className="home-title-marker" aria-hidden="true">
-              <span />
-            </span>
           </h1>
 
           <p className="home-description">
