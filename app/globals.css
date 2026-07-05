@@ -21,6 +21,13 @@
   --line: #ddd3c6;
   --paper: #fffdf8;
   --mint: #78c6a3;
+  --button-fill: #a8cdd0;
+  --button-fill-strong: #95c0c4;
+  --button-text: #111111;
+  --button-border: #1b0f0b;
+  --button-shadow: 0 3px 0 rgba(27, 15, 11, 0.92), 0 5px 10px rgba(27, 15, 11, 0.06);
+  --button-shadow-hover: 0 1px 0 rgba(27, 15, 11, 0.92), 0 4px 8px rgba(27, 15, 11, 0.06);
+  --button-radius: 999px;
   --green: #1d7f63;
   --blue: #3b6eea;
   --coral: #f26b5e;
@@ -178,23 +185,24 @@ button {
   justify-content: space-between;
   width: 100%;
   min-height: 72px;
-  border: 4px solid #1b0f0b;
-  border-radius: 0;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
   padding: 0 24px;
-  color: white;
-  background: #fb6045;
-  box-shadow: 8px 8px 0 #1b0f0b;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow);
   font-family: "Galmuri14", Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  font-size: 23px;
-  font-weight: 400;
+  font-size: 20px;
+  font-weight: 700;
   letter-spacing: 0;
   cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
 }
 
 .home-cta:hover {
-  transform: translate(2px, 2px);
-  box-shadow: 6px 6px 0 #1b0f0b;
+  transform: translateY(2px);
+  background: var(--button-fill-strong);
+  box-shadow: var(--button-shadow-hover);
 }
 
 .home-stats {
@@ -464,10 +472,10 @@ button {
 .participant-field select {
   min-height: 56px;
   border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border-radius: 18px;
   color: #1b0f0b;
   background: #fffdf8;
-  box-shadow: 4px 4px 0 #1b0f0b;
+  box-shadow: 0 3px 0 rgba(27, 15, 11, 0.9), 0 6px 10px rgba(27, 15, 11, 0.08);
   font-weight: 800;
 }
 
@@ -486,7 +494,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 4px 4px 0 #1b0f0b;
+  border-color: var(--button-border);
+  box-shadow: var(--button-shadow-hover);
   font-size: 16px;
 }
 
@@ -495,8 +504,8 @@ button {
 }
 
 .time-toggle button.is-active {
-  color: white;
-  background: #f65d43;
+  color: var(--button-text);
+  background: var(--button-fill);
 }
 
 .condition-meta {
@@ -526,19 +535,19 @@ button {
 .room-tag {
   min-height: 38px;
   border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border-radius: var(--button-radius);
   padding: 0 14px;
   color: #1b0f0b;
-  background: #fffdf8;
-  box-shadow: 4px 4px 0 #1b0f0b;
-  font-size: 13px;
+  background: #f7fbfb;
+  box-shadow: 0 4px 0 rgba(27, 15, 11, 0.94);
+  font-size: 12px;
   font-weight: 950;
 }
 
 .room-tag.is-active {
-  color: white;
-  background: #1b0f0b;
-  box-shadow: 4px 4px 0 #f65d43;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
 }
 
 .tag-help {
@@ -596,11 +605,11 @@ button {
 
 .room-add-button,
 .show-results-button {
-  border: 0;
-  border-radius: 0;
-  color: white;
-  background: #1b0f0b;
-  box-shadow: 4px 4px 0 #f65d43;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
   font-weight: 950;
 }
 
@@ -679,8 +688,8 @@ button {
   height: 34px;
   border: 2px solid #1b0f0b;
   color: #1b0f0b;
-  background: #fffdf8;
-  box-shadow: 3px 3px 0 #1b0f0b;
+  background: #f7fbfb;
+  box-shadow: 0 2px 0 rgba(27, 15, 11, 0.9), 0 5px 8px rgba(27, 15, 11, 0.08);
   font-size: 22px;
   font-weight: 950;
 }
@@ -709,7 +718,7 @@ button {
   width: calc(100% - 36px);
   min-height: 52px;
   margin: 0 18px 18px;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .results-page-head {
@@ -749,13 +758,14 @@ button {
 
 .edit-participants-button {
   min-height: 46px;
-  border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
   padding: 0 14px;
-  color: #1b0f0b;
-  background: #fffdf8;
-  box-shadow: 4px 4px 0 #1b0f0b;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
   font-weight: 950;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -985,17 +995,18 @@ button {
 
 .result-card .vote-button {
   min-height: 52px;
-  border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
   padding: 0 18px;
-  background: #1b0f0b;
-  box-shadow: 4px 4px 0 #1b0f0b;
-  font-size: 16px;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
+  font-size: 14px;
   font-weight: 950;
 }
 
 .result-card .vote-button.is-on {
-  background: #f65d43;
+  background: var(--button-fill-strong);
 }
 
 .detail-shell {
@@ -1018,10 +1029,10 @@ button {
   width: 34px;
   height: 34px;
   border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border-radius: 999px;
   color: #1b0f0b;
-  background: #fffdf8;
-  box-shadow: 3px 3px 0 #1b0f0b;
+  background: #f7fbfb;
+  box-shadow: 0 3px 0 rgba(27, 15, 11, 0.94);
   font-size: 28px;
   font-weight: 950;
   line-height: 1;
@@ -1063,19 +1074,19 @@ button {
 
 .detail-station-vote {
   min-height: 38px;
-  border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
   padding: 0 10px;
-  color: white;
-  background: #557a45;
-  box-shadow: 4px 4px 0 #1b0f0b;
-  font-size: 13px;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
+  font-size: 12px;
   font-weight: 950;
   white-space: nowrap;
 }
 
 .detail-station-vote.is-on {
-  background: #f65d43;
+  background: var(--button-fill-strong);
 }
 
 .detail-hero {
@@ -1238,19 +1249,19 @@ button {
 .map-filter-tabs button {
   min-height: 30px;
   border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border-radius: var(--button-radius);
   padding: 0 9px;
   color: #1b0f0b;
-  background: #fffdf8;
-  box-shadow: 3px 3px 0 #1b0f0b;
-  font-size: 12px;
+  background: #f7fbfb;
+  box-shadow: 0 3px 0 rgba(27, 15, 11, 0.94);
+  font-size: 11px;
   font-weight: 950;
   white-space: nowrap;
 }
 
 .map-filter-tabs button.is-active {
-  color: white;
-  background: #1b0f0b;
+  color: var(--button-text);
+  background: var(--button-fill);
 }
 
 .detail-pixel-map {
@@ -1466,17 +1477,18 @@ button {
 
 .place-card-foot button {
   min-height: 38px;
-  border: 2px solid #1b0f0b;
-  border-radius: 0;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
   padding: 0 12px;
-  color: white;
-  background: #557a45;
-  box-shadow: 4px 4px 0 #1b0f0b;
+  color: var(--button-text);
+  background: var(--button-fill);
+  box-shadow: var(--button-shadow-hover);
+  font-size: 13px;
   font-weight: 950;
 }
 
 .place-card-foot button.is-on {
-  background: #f65d43;
+  background: var(--button-fill-strong);
 }
 
 .app-header {
@@ -1564,18 +1576,19 @@ button {
   position: relative;
   display: grid;
   place-items: center;
-  width: 39px;
+  width: 46px;
   height: 39px;
-  border: 3px solid var(--ink);
-  border-radius: 50%;
-  background: #ffe1c7;
+  border: 3px solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-fill);
+  box-shadow: 0 4px 0 rgba(27, 15, 11, 0.94);
   cursor: pointer;
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
 .avatar-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(42, 30, 15, 0.12);
+  transform: translateY(1px);
+  box-shadow: 0 3px 0 rgba(27, 15, 11, 0.94);
 }
 
 .avatar-face {
@@ -2152,9 +2165,9 @@ input:focus {
   .home-cta {
     min-height: 72px;
     padding: 0 24px;
-    border-width: 4px;
-    box-shadow: 8px 8px 0 #1b0f0b;
-    font-size: 23px;
+    border-width: 3px;
+    box-shadow: var(--button-shadow);
+    font-size: 20px;
   }
 
   .stat-dot {
