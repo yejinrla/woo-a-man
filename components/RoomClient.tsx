@@ -64,8 +64,22 @@ interface RoomClientProps {
   initialRoom: Room;
 }
 
+interface PlaceSearchResult {
+  name: string;
+  address: string;
+  category: string;
+  x: string;
+  y: string;
+}
+
+interface PlaceSearchTarget {
+  participantId: string;
+  field: "startPlace" | "returnPlace";
+  label: string;
+}
+
 const TAGS = ["#요즘유행하는", "#한적한", "#대화하기좋은", "#맛집많은", "#사진찍기좋은", "#비오는날좋은"];
-const TRANSPORTS = ["대중교통", "도보", "차량", "택시"];
+const TRANSPORTS = ["대중교통", "도보", "차량"];
 const tagLimit = 3;
 
 export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
@@ -77,6 +91,11 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
   const [toast, setToast] = useState("");
   const pendingSaves = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const selectedTagCount = room.tags.length;
+
+  const [placeSearchTarget, setPlaceSearchTarget] = useState<PlaceSearchTarget | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
+  const [placeSearching, setPlaceSearching] = useState(false);
 
   const applyRoom = useCallback((nextRoom: Room) => {
     setRoom(nextRoom);
@@ -185,6 +204,54 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
     patchRoom({ tags: [...current] });
   }
 
+  function openPlaceSearch(participant: Participant, field: "startPlace" | "returnPlace") {
+    const label = field === "startPlace" ? "출발장소" : "귀가장소";
+    setPlaceSearchTarget({ participantId: participant.id, field, label });
+    setPlaceQuery(participant[field]);
+    setPlaceResults([]);
+  }
+
+  function closePlaceSearch() {
+    setPlaceSearchTarget(null);
+    setPlaceQuery("");
+    setPlaceResults([]);
+    setPlaceSearching(false);
+  }
+
+  function selectPlaceResult(result: PlaceSearchResult) {
+    if (!placeSearchTarget) return;
+    const participant = room.participants.find((item) => item.id === placeSearchTarget.participantId);
+    if (participant) {
+      changeParticipant(participant, placeSearchTarget.field, result.name);
+    }
+    closePlaceSearch();
+  }
+
+  useEffect(() => {
+    if (!placeSearchTarget) return;
+    const query = placeQuery.trim();
+    if (!query) {
+      setPlaceResults([]);
+      setPlaceSearching(false);
+      return;
+    }
+
+    setPlaceSearching(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/places/search?q=${encodeURIComponent(query)}`);
+        const data = (await response.json()) as { places?: PlaceSearchResult[] };
+        setPlaceResults(data.places || []);
+      } catch {
+        setPlaceResults([]);
+      } finally {
+        setPlaceSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [placeQuery, placeSearchTarget]);
+
   return (
     <main>
       <section className="app-shell room-shell" data-view={roomView}>
@@ -193,7 +260,12 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
         <header className="room-page-head">
           <div>
             <div className="room-kicker">
-              <span>STEP 01</span>
+              <span className="step-progress" aria-label="1단계 / 3단계">
+                <span className="step-progress-dot is-current" aria-hidden="true" />
+                <span className="step-progress-dot" aria-hidden="true" />
+                <span className="step-progress-dot" aria-hidden="true" />
+                STEP 01
+              </span>
               <p>누가·어디서·언제</p>
             </div>
             <h1>만남터 찾기</h1>
@@ -272,10 +344,10 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
                 {room.participants.map((participant, index) => (
                   <article className="participant-card" key={participant.id}>
                     <div className="participant-card-head">
-                      <span className="participant-index">{index + 1}</span>
+                      <span className={`participant-index ${index % 2 === 0 ? "is-coral" : "is-mint"}`}>{index + 1}</span>
                       <div>
                         <h3>{participant.name}</h3>
-                        <p><span /> P-{String(index + 1).padStart(2, "0")} · ACTIVE</p>
+                        <p><span /> 함께 하는 중</p>
                       </div>
                       <button className="delete-button" type="button" onClick={() => deleteParticipant(participant.id)} aria-label={`${participant.name} 삭제`}>
                         ×
@@ -284,11 +356,11 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
 
                     <div className="participant-form-grid">
                       <label className="participant-field time-field">
-                        <span>출발시각</span>
+                        <span><i aria-hidden="true">⏰</i>출발시각</span>
                         <input type="time" value={participant.startTime} onChange={(event) => changeParticipant(participant, "startTime", event.target.value)} />
                       </label>
                       <label className="participant-field transport-field">
-                        <span>교통수단</span>
+                        <span><i aria-hidden="true">🚌</i>교통수단</span>
                         <select value={participant.transport} onChange={(event) => changeParticipant(participant, "transport", event.target.value)}>
                           {TRANSPORTS.map((transport) => (
                             <option key={transport} value={transport}>
@@ -297,13 +369,15 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
                           ))}
                         </select>
                       </label>
-                      <label className="participant-field place-field">
-                        <span>출발장소</span>
-                        <input type="text" value={participant.startPlace} placeholder="예: 강남역" onChange={(event) => changeParticipant(participant, "startPlace", event.target.value)} />
-                      </label>
-                      <label className="participant-field place-field">
-                        <span>귀가장소</span>
-                        <input type="text" value={participant.returnPlace} placeholder="예: 강남역" onChange={(event) => changeParticipant(participant, "returnPlace", event.target.value)} />
+                      <label className="participant-field place-field place-field-wide">
+                        <span><i aria-hidden="true">📍</i>출발장소</span>
+                        <input
+                          type="text"
+                          value={participant.startPlace}
+                          placeholder="예: 강남역"
+                          readOnly
+                          onClick={() => openPlaceSearch(participant, "startPlace")}
+                        />
                       </label>
                     </div>
                   </article>
@@ -402,6 +476,45 @@ export default function RoomClient({ roomId, initialRoom }: RoomClientProps) {
         )}
       </section>
       {toast ? <div className="toast">{toast}</div> : null}
+      {placeSearchTarget ? (
+        <div className="place-search-overlay" role="dialog" aria-label={`${placeSearchTarget.label} 검색`}>
+          <header className="place-search-bar">
+            <button className="place-search-back" type="button" onClick={closePlaceSearch} aria-label="닫기">
+              ‹
+            </button>
+            <div className="place-search-input">
+              <input
+                type="text"
+                value={placeQuery}
+                placeholder={`${placeSearchTarget.label} 검색`}
+                autoFocus
+                onChange={(event) => setPlaceQuery(event.target.value)}
+              />
+              {placeQuery ? (
+                <button type="button" className="place-search-clear" onClick={() => setPlaceQuery("")} aria-label="검색어 지우기">
+                  ×
+                </button>
+              ) : null}
+            </div>
+            <span className="place-search-label">검색</span>
+          </header>
+
+          <ul className="place-search-results">
+            {placeSearching ? <li className="place-search-empty">검색 중…</li> : null}
+            {!placeSearching && placeQuery && placeResults.length === 0 ? (
+              <li className="place-search-empty">검색 결과가 없어요</li>
+            ) : null}
+            {placeResults.map((result) => (
+              <li key={`${result.name}-${result.x}-${result.y}`}>
+                <button type="button" onClick={() => selectPlaceResult(result)}>
+                  <strong>{result.name}</strong>
+                  <span>{result.address}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </main>
   );
 }
